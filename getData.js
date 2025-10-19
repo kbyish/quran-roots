@@ -1,40 +1,76 @@
-const { json } = require("stream/consumers");
+//const { json } = require("stream/consumers");
 
-console.log('test');
-const arabicText = 'عرف';
-const encodedText = encodeURIComponent(arabicText);
-let apiUrl = 'https://tafsir.app/get_word.php?src=quran-roots&w=' + encodedText;
-console.log(apiUrl);
-
-//final result array
 let allRootsWordsdetails = [];
-
-fetch(apiUrl)
-  .then(response => {
-    // Check if the network response was successful
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+const apiURLBase = 'https://tafsir.app/get_word.php?src=quran-roots&w=';
+getAllRootswords();
+function getAllRootswords() {
+  const fs = require('fs');
+  const filePath = './RealData/allRoots.json';
+  fs.readFile(filePath, async function (error, content) {
+    if (error) {
+      console.log('Error reading file:', error);
+      return;
     }
-    // Parse the JSON response into a JavaScript object
-    return response.json();
-  })
-  .then(data => {
-    // Process the retrieved data
-    //console.log('Data from API:', data);
-    // You can now use 'data' to update your UI or perform other actions
-    processData(data, arabicText);
-  })
-  .catch(error => {
-    // Handle any errors that occurred during the fetch operation
-    console.error('Error fetching data:', error);
-  });
+    var data = JSON.parse(content);
+    let counter = 0;
+    for (const key in data) {
+      if (data.hasOwnProperty(key)) {
+        // 0346 has no data
+        // 034 has no data 1600
+        // 01234578  has  403- has data  
+        // 023478  has 53 -- has data
+        if (data[key] == "023478") {
+          const arabicText = key;
+          const arabicTextc = 'عرف';
+          const encodedText = encodeURIComponent(arabicText);
+          let apiUrl = apiURLBase + encodedText;
+          console.log('key = :', key, 'value=', data[key], 'arabicText=', arabicText, 'encodedText=', encodedText);
+          if (! await fetchData(apiUrl, arabicText)) {
+            console.log('API call failed for root word:', key, 'value=', data[key]);
+          }
+          else{
+            console.log('Data allRootsWordsdetails =', allRootsWordsdetails);
+          }
+          counter++;
+        }
+      }
+      
+    }// end for
 
-
-function processData(data, rootWord) {
-  let resultObj = getDatafromHtml(data.data, rootWord);
-  allRootsWordsdetails.push(resultObj);
-  saveObjTofile(allRootsWordsdetails, './resultData/' + rootWord + '.json');
+    saveObjTofile(allRootsWordsdetails, './resultData/finals.json');
+    console.log('Total roots processed:', counter);
+    console.log('------------------------------------------------------------');
+  });// file read
 }
+
+async function fetchData(apiUrl, arabicText) {
+  let apiCallStatus = true;
+  try {
+    // Make the initial fetch request and await the response headers
+    const response = await fetch(apiUrl);
+
+    // Check if the response was successful (e.g., status code 200-299)
+    if (!response.ok) {
+      apiCallStatus = false;
+      //throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    // Await the parsing of the response body (e.g., as JSON)
+    const data = await response.json();
+    // console.log('API Response:', data);
+    let resultObj = getDatafromHtml(data.data, arabicText);
+    allRootsWordsdetails.push(resultObj);
+
+    console.log('fetchData():resultObj =', resultObj);
+    // Now 'data' contains the parsed response from the API
+    //console.log('API Response:', data);
+
+  } catch (error) {
+    apiCallStatus = false;
+    console.error('Error fetching data:', error);
+  }
+}
+
 
 function getDatafromHtml(htmlData, rootWord = '') {
 
@@ -42,7 +78,6 @@ function getDatafromHtml(htmlData, rootWord = '') {
   {
     root: '', count: 0, details: []
   };
-
 
   rootObject.root = rootWord;
 
